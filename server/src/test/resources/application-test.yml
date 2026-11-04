@@ -1,0 +1,20 @@
+# Test profile – uses H2 in-memory database
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect:  # Let Hibernate auto-detect H2 dialect
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    com.dvcguide: INFO
+
