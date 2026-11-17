@@ -1,27 +1,19 @@
 package com.dvcguide.server.integration.ai;
 
-import java.util.Map;
+import com.dvcguide.server.common.model.AnswerStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * Interface for communicating with the AI/RAG service (Python FastAPI).
- * <p>
- * This is a placeholder interface prepared for future integration.
- * Implementation will call the AI service REST API using RestTemplate or WebClient.
- * <p>
- * Future implementation:
- * - Send user query with context
- * - Receive AI-generated response with source citations
- * - Handle AI service unavailability gracefully
- */
+import java.util.List;
+
 public interface AiServiceClient {
+    Answer query(Query request);
 
-    /**
-     * Sends a query to the AI service and returns a response.
-     *
-     * @param query   The user's question
-     * @param context Additional context (e.g., conversation history)
-     * @return AI-generated response
-     * TODO: Replace Map with proper request/response DTOs
-     */
-    Map<String, Object> query(String query, Map<String, Object> context);
+    record Source(@JsonProperty("procedure_id") int procedureId, String code, String title, String content) {}
+
+    record Turn(String role, String content) {}
+
+    record Query(String question, List<Source> sources, List<Turn> history) {}
+
+    record Answer(String answer, @JsonProperty("source_codes") List<String> sourceCodes,
+                  AnswerStatus how, @JsonProperty("latency_ms") Integer latencyMs, String model) {}
 }

@@ -1,0 +1,8 @@
+{
+ "TAU": 0.8602992594242096,
+ "n_answerable": 256,
+ "n_unanswerable": 194,
+ "blocked_unanswerable": 0.865979381443299,
+ "kept_answerable": 0.94921875,
+ "RELATED_MIN": 0.8602992594242096
+}

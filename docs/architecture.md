@@ -19,7 +19,7 @@
            │ JPA                                │ HTTP (Internal)
            ▼                                    ▼
 ┌──────────────────┐              ┌─────────────────────────────┐
-│   MySQL 8.x      │              │    AI/RAG Service (Future)   │
+│   MySQL 8.x      │              │    AI/RAG Service            │
 │   Database       │              │   Python FastAPI + Ollama    │
 │   Port: 3306     │              │   Port: 8000                 │
 └──────────────────┘              └─────────────────────────────┘
@@ -88,7 +88,7 @@ com.dvcguide.server/
 ├── common/          # Thành phần dùng chung (ApiResponse, Exception)
 ├── integration/     # Giao tiếp với dịch vụ ngoài (AI Service)
 ├── health/          # Health check endpoint
-└── [feature]/       # Các module nghiệp vụ (tương lai: user, procedure, ...)
+└── [feature]/       # Các module nghiệp vụ (account, procedure, chat, ...)
     ├── controller/
     ├── service/
     ├── repository/
@@ -106,38 +106,25 @@ com.dvcguide.server/
 }
 ```
 
-## 4. AI Service – Python FastAPI (Tương lai)
+## 4. Hội thoại và AI service
 
-### Vai trò dự kiến
-- Nhận câu hỏi từ Spring Boot qua REST
-- Thực hiện RAG: Retrieval từ vector DB, Augmented Generation với Ollama
-- Trả kết quả có trích dẫn nguồn
+```text
+Client → Spring Boot → FastAPI → Ollama
+              │
+              └─ MySQL (thủ tục công khai, hội thoại, tin nhắn, đánh giá)
+```
 
-### Luồng RAG (định hướng)
-```
-Câu hỏi người dùng
-    │
-    ▼
-Embedding Model (Ollama/local)
-    │
-    ▼
-Vector Search (ChromaDB/Qdrant)
-    │
-    ▼
-Context Retrieval + Reranking
-    │
-    ▼
-LLM Generation (Ollama/Qwen/LLaMA)
-    │
-    ▼
-Response với nguồn trích dẫn
-```
+- Spring Boot xác thực quyền sở hữu hội thoại, lấy trích đoạn từ thủ tục đang áp dụng và gửi tối đa sáu tin nhắn gần nhất qua HTTP. Cuộc gọi AI diễn ra ngoài giao dịch MySQL.
+- FastAPI nhận `POST /api/v1/rag/query`, chuẩn hóa phản hồi từ Ollama và kiểm tra mã nguồn trích dẫn. Nếu danh sách nguồn rỗng, FastAPI trả `gate`.
+- Spring Boot lưu câu hỏi và câu trả lời cùng một giao dịch khi lịch sử vẫn khớp. Nếu hội thoại thay đổi trong lúc gọi AI, API trả `409`.
+
+Luồng hiện dùng ngữ cảnh của thủ tục đã chọn. Tìm kiếm ngữ nghĩa, xếp hạng đoạn trích và dựng lại chỉ mục từ `rag_chunk` là bước tiếp theo.
 
 ## 5. Giao tiếp Flutter ↔ Spring Boot
 
 ### Protocol
 - **Giao thức:** HTTPS REST (JSON)
-- **Authentication (tương lai):** Bearer JWT
+- **Authentication:** Bearer token lưu phiên ở database
 - **Content-Type:** `application/json`
 - **Base URL Dev:** `http://10.0.2.2:8080` (Android emulator → localhost)
 - **Base URL Prod:** `https://api.dvcguide.vn`
@@ -147,9 +134,8 @@ Response với nguồn trích dẫn
 - Network error → `DioException` → `AppException`
 - UI hiển thị error state qua ViewModel
 
-## 6. Security (Tương lai)
+## 6. Xác thực và phân quyền
 
-- Spring Security với JWT
-- Flutter: token lưu `flutter_secure_storage`
-- Refresh token flow
-- Role-based access control (RBAC)
+- Backend cấp Bearer token cho người dùng, lưu bản băm SHA-256 và thu hồi phiên khi đăng xuất.
+- Admin React gửi HTTP Basic qua kết nối HTTPS khi triển khai. Backend xác thực mật khẩu BCrypt và giới hạn API quản trị theo vai trò `admin` hoặc `bien_tap`.
+- Hồ sơ, checklist, yêu thích và hội thoại được truy cập theo tài khoản đã xác thực.
