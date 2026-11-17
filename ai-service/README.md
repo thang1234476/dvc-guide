@@ -1,65 +1,38 @@
 # DVC Guide AI Service
 
-> Python FastAPI service chuẩn bị cho tích hợp RAG và Ollama trong tương lai.
+FastAPI nhận câu hỏi, trích đoạn thủ tục và lịch sử gần đây từ Spring Boot. Ollama trả về câu trả lời tiếng Việt dưới dạng JSON. FastAPI kiểm tra mã trích dẫn có thuộc các nguồn đã nhận trước khi trả kết quả về Spring Boot.
 
-## Trạng thái hiện tại
+## Chạy riêng
 
-**SKELETON ONLY** – Chưa triển khai RAG pipeline.
-
-Hiện tại chỉ có:
-- Health check endpoint (`GET /api/v1/health`)
-- Cấu hình Pydantic Settings từ environment variables
-- Cấu trúc thư mục chuẩn bị cho tương lai
-
-## Vai trò dự kiến
-
-AI Service sẽ xử lý:
-1. **Embedding**: Chuyển đổi câu hỏi thành vector
-2. **Retrieval**: Tìm kiếm tài liệu liên quan từ vector database (Qdrant)
-3. **Reranking**: Sắp xếp kết quả theo độ phù hợp
-4. **Generation**: Tạo câu trả lời bằng Ollama LLM (Qwen2/LLaMA)
-5. **Citation**: Trả về nguồn trích dẫn cùng câu trả lời
-
-## Chạy service
+Chạy từ thư mục `ai-service/`.
 
 ```bash
-# 1. Tạo virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-
-# 2. Cài dependencies
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# 3. Cấu hình
 cp .env.example .env
-
-# 4. Chạy
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-- **Swagger:** http://localhost:8000/docs
-- **Health:** http://localhost:8000/api/v1/health
+Đặt `OLLAMA_BASE_URL` theo địa chỉ Ollama và `OLLAMA_MODEL` theo tên model đã cài. Mặc định FastAPI chờ Ollama tối đa 45 giây. Đặt `AI_SERVICE_TIMEOUT_SECONDS` của Spring Boot lớn hơn `OLLAMA_TIMEOUT_SECONDS` khi điều chỉnh hai giá trị này. [Hợp đồng API chat của Ollama](https://docs.ollama.com/api/chat)
 
-## Cấu trúc
+Swagger mở tại [localhost:8000/docs](http://localhost:8000/docs). Endpoint `GET /api/v1/health` báo tiến trình FastAPI và trạng thái khai báo model. Kiểm tra HTTP đến Ollama diễn ra khi có yêu cầu cần model.
 
-```
-app/
-├── main.py              # FastAPI app entry point
-├── core/
-│   └── config.py        # Pydantic Settings
-├── schemas/
-│   └── rag_schemas.py   # Request/Response models (placeholder)
-├── services/
-│   └── rag_service.py   # RAG pipeline (placeholder)
-└── integrations/
-    └── ollama/
-        └── client.py    # Ollama client (placeholder)
-```
+## Hợp đồng với Spring Boot
 
-## Tích hợp với Spring Boot
+`POST /api/v1/rag/query` nhận JSON gồm `question`, `sources` và `history`. Mỗi nguồn có `procedure_id`, `code`, `title` và `content`. Lịch sử gồm các mục `role` và `content` theo thứ tự cũ đến mới.
 
-Spring Boot sẽ gọi AI Service thông qua REST API:
-```
-Spring Boot  →  POST /api/v1/rag/query  →  AI Service  →  Ollama
-               {question, context}         {answer, sources}
+| Trạng thái | Ý nghĩa |
+|---|---|
+| `answered` | Model trả lời kèm mã trích dẫn thuộc danh sách nguồn |
+| `gate` | Danh sách nguồn rỗng. Hệ thống gợi ý chọn thủ tục |
+| `guard` | JSON trả về hoặc mã trích dẫn của model không đạt yêu cầu |
+| HTTP `503` | Model chưa được cấu hình hoặc Ollama không phản hồi hợp lệ |
+
+Nguồn hiện đến từ thủ tục đã chọn và đang áp dụng trong MySQL. Embedding, tìm kiếm vector và đồng bộ chỉ mục theo phiên bản thủ tục là các bước phát triển tiếp theo.
+
+## Kiểm thử
+
+```bash
+python -m pytest
 ```

@@ -6,9 +6,11 @@
 dvc-guide/
 ├── mobile/          # Flutter mobile application
 ├── server/          # Spring Boot backend API
-├── ai-service/      # Python FastAPI + Ollama RAG service (tương lai)
+├── admin-web/       # React + Vite
+├── ai-service/      # Python FastAPI + Ollama, khung hỏi đáp theo nguồn
 ├── docs/            # Tài liệu dự án
-├── infrastructure/  # Cấu hình hạ tầng (tương lai)
+├── infrastructure/  # Schema MySQL
+├── compose.yaml      # Chạy chung các dịch vụ
 ├── .gitignore
 └── README.md
 ```
@@ -37,7 +39,7 @@ mobile/
 │   │   │   ├── api_client.dart      # Dio singleton với interceptors
 │   │   │   ├── api_endpoints.dart   # URL path constants
 │   │   │   └── interceptors/
-│   │   │       ├── auth_interceptor.dart  # JWT header (tương lai)
+│   │   │       ├── auth_interceptor.dart  # Bearer token từ secure storage
 │   │   │       └── error_interceptor.dart # Xử lý lỗi HTTP
 │   │   ├── error/
 │   │   │   ├── app_exception.dart   # Custom exception classes
@@ -83,7 +85,7 @@ server/
 │   │   │   │   ├── CorsConfig.java        # CORS configuration
 │   │   │   │   ├── OpenApiConfig.java     # Swagger/OpenAPI 3
 │   │   │   │   ├── ApplicationConfig.java # Bean definitions
-│   │   │   │   └── SecurityConfig.java    # Spring Security (stub)
+│   │   │   │   └── SecurityConfig.java    # Spring Security cho mobile và admin
 │   │   │   ├── common/
 │   │   │   │   ├── response/
 │   │   │   │   │   └── ApiResponse.java   # Standard API wrapper
@@ -94,9 +96,11 @@ server/
 │   │   │   │   └── util/                 # Utility classes
 │   │   │   ├── integration/
 │   │   │   │   ├── ai/
-│   │   │   │   │   └── AiServiceClient.java  # AI service interface
+│   │   │   │   │   ├── AiServiceClient.java  # Hợp đồng với FastAPI
+│   │   │   │   │   └── HttpAiServiceClient.java  # REST client có timeout
 │   │   │   │   └── rag/
 │   │   │   │       └── RagServiceClient.java # RAG service interface
+│   │   │   ├── chat/                     # Hội thoại, tin nhắn, đánh giá
 │   │   │   └── health/
 │   │   │       └── HealthController.java  # GET /api/v1/health
 │   │   └── resources/
@@ -129,20 +133,20 @@ com.dvcguide.server.procedure/
 
 ---
 
-## `ai-service/` – Python FastAPI (Skeleton)
+## `ai-service/` – Python FastAPI
 
 ```
 ai-service/
 ├── app/
 │   ├── main.py                # FastAPI app, lifespan, routers
 │   ├── api/
-│   │   └── v1/               # API v1 routers (tương lai)
+│   │   └── rag.py             # POST /api/v1/rag/query
 │   ├── core/
 │   │   └── config.py         # Pydantic Settings từ .env
 │   ├── schemas/              # Pydantic request/response models
-│   ├── services/             # Business logic (RAG pipeline)
+│   ├── services/             # Điều phối hỏi đáp theo nguồn
 │   └── integrations/
-│       └── ollama/           # Ollama client (tương lai)
+│       └── ollama/           # HTTP client gọi Ollama
 ├── tests/
 ├── requirements.txt
 ├── .env.example
@@ -162,6 +166,10 @@ ai-service/
 
 ---
 
-## `infrastructure/` – Hạ tầng (Tương lai)
+## `admin-web/` – Quản trị thủ tục
 
-Sẽ chứa: Docker Compose, Kubernetes configs, CI/CD pipeline configs.
+Ứng dụng React gọi API Spring Boot qua proxy Vite khi phát triển và Nginx trong Compose. `src/ProcedureEditor.jsx` chứa biểu mẫu quản trị thủ tục.
+
+## `infrastructure/` – Hạ tầng
+
+`database/schema.sql` chứa schema MySQL dùng để khởi tạo database.

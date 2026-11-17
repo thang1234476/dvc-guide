@@ -1,35 +1,42 @@
-"""
-Ollama client integration placeholder.
+from typing import Any
 
-Ollama is a local LLM runtime for running open-source models like:
-- Qwen2 (recommended for Vietnamese language support)
-- LLaMA 3
-- Mistral
+import httpx
+from pydantic import BaseModel, Field, ValidationError
 
-NOT YET IMPLEMENTED.
 
-Future implementation will use the `ollama` Python library or direct HTTP calls
-to the Ollama REST API (default: http://localhost:11434).
-"""
+class OllamaUnavailable(Exception):
+    pass
 
-# from ollama import AsyncClient
-#
-# class OllamaClient:
-#     def __init__(self, base_url: str, model: str, embed_model: str):
-#         self.client = AsyncClient(host=base_url)
-#         self.model = model
-#         self.embed_model = embed_model
-#
-#     async def embed(self, text: str) -> list[float]:
-#         """Generate text embedding for vector search."""
-#         response = await self.client.embeddings(model=self.embed_model, prompt=text)
-#         return response.embedding
-#
-#     async def generate(self, prompt: str, context: str) -> str:
-#         """Generate answer using LLM with RAG context."""
-#         response = await self.client.generate(
-#             model=self.model,
-#             prompt=f"Context:\n{context}\n\nQuestion: {prompt}\nAnswer:",
-#             stream=False,
-#         )
-#         return response.response
+
+class ChatMessage(BaseModel):
+    content: str = Field(min_length=1)
+
+
+class ChatResponse(BaseModel):
+    message: ChatMessage
+
+
+class OllamaClient:
+    def __init__(self, http: httpx.AsyncClient, model: str) -> None:
+        self._http = http
+        self.model = model
+
+    async def chat(self, messages: list[dict[str, str]], response_schema: dict[str, Any]) -> str:
+        if not self.model:
+            raise OllamaUnavailable("Dịch vụ AI chưa được cấu hình mô hình Ollama.")
+
+        try:
+            response = await self._http.post(
+                "/api/chat",
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "format": response_schema,
+                    "stream": False,
+                    "options": {"temperature": 0.1, "num_predict": 768},
+                },
+            )
+            response.raise_for_status()
+            return ChatResponse.model_validate_json(response.content).message.content
+        except (httpx.HTTPError, ValidationError) as error:
+            raise OllamaUnavailable("Không nhận được phản hồi hợp lệ từ Ollama.") from error
