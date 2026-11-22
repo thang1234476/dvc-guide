@@ -1,124 +1,227 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/auth/presentation/screens/account_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/chat/presentation/screens/chat_history_screen.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/feedback/presentation/screens/feedback_screen.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
+import '../../features/my_cases/presentation/screens/my_case_check_screen.dart';
+import '../../features/my_cases/presentation/screens/my_case_detail_screen.dart';
+import '../../features/my_cases/presentation/screens/my_cases_screen.dart';
+import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/onboarding/presentation/screens/splash_screen.dart';
+import '../../features/procedure/presentation/screens/find_agency_screen.dart';
+import '../../features/procedure/presentation/screens/procedure_detail_screen.dart';
+import '../../features/settings/presentation/screens/delete_data_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../shared/widgets/main_scaffold.dart';
 
-/// Route path constants
+/// Route path constants and helper path builders
 class AppRoutes {
-  static const String home = '/';
+  AppRoutes._();
 
-  // Future routes (uncomment as features are built)
-  // static const String login = '/login';
-  // static const String register = '/register';
-  // static const String procedures = '/procedures';
-  // static const String chat = '/chat';
-  // static const String profile = '/profile';
+  static const String home = '/';
+  static const String procedureDetail = '/procedures/:id';
+  static const String chat = '/chat';
+  static const String myCases = '/my-cases';
+  static const String myCaseDetail = '/my-cases/:id';
+  static const String myCaseCheck = '/my-cases/:id/check';
+  static const String settings = '/settings';
+
+  static const String splash = '/splash';
+  static const String onboarding = '/onboarding';
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String account = '/account';
+  static const String findAgency = '/find-agency';
+  static const String chatHistory = '/chat-history';
+  static const String deleteData = '/delete-data';
+  static const String feedback = '/feedback';
+
+  static String procedureDetailPath(int id) => '/procedures/$id';
+  static String myCaseDetailPath(String id) => '/my-cases/$id';
+  static String myCaseCheckPath(String id) => '/my-cases/$id/check';
 }
 
-/// Application router provider using go_router.
-/// Add routes here as new features are implemented.
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Application router provider using go_router with StatefulShellRoute.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: AppRoutes.home,
-    debugLogDiagnostics: true,
+    navigatorKey: _rootNavigatorKey,
+    initialLocation: AppRoutes.splash,
+    debugLogDiagnostics: false,
     routes: [
       GoRoute(
-        path: AppRoutes.home,
-        name: 'home',
-        builder: (context, state) => const HomeScreen(),
+        path: AppRoutes.splash,
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        name: 'login',
+        builder: (context, state) {
+          final from = state.uri.queryParameters['from'];
+          return LoginScreen(from: from);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        name: 'register',
+        builder: (context, state) {
+          final from = state.uri.queryParameters['from'];
+          return RegisterScreen(from: from);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.account,
+        name: 'account',
+        builder: (context, state) => const AccountScreen(),
+      ),
+
+      // Procedure Detail route (outside tab scaffold, uses root navigator key for proper back stack)
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/procedures/:id',
+        name: 'procedureDetail',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          final thIdStr = state.uri.queryParameters['truongHopId'];
+          final truongHopId = thIdStr != null ? int.tryParse(thIdStr) : null;
+          return ProcedureDetailScreen(
+            id: id,
+            initialTruongHopId: truongHopId,
+          );
+        },
+      ),
+
+      // Find Agency route (outside tab scaffold, uses root navigator key)
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/find-agency',
+        name: 'findAgency',
+        builder: (context, state) {
+          final thuTucId = int.tryParse(state.uri.queryParameters['thuTucId'] ?? '') ?? 0;
+          final caseId = state.uri.queryParameters['caseId'] ?? '';
+          final slot = state.uri.queryParameters['slot'] ?? 'du_dinh';
+          final from = state.uri.queryParameters['from'] ?? 'procedure';
+          return FindAgencyScreen(
+            thuTucId: thuTucId,
+            caseId: caseId,
+            slot: slot,
+            from: from,
+          );
+        },
+      ),
+
+      // Chat History route (outside tab scaffold, uses root navigator key)
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.chatHistory,
+        name: 'chatHistory',
+        builder: (context, state) => const ChatHistoryScreen(),
+      ),
+
+      // Delete Data route (outside tab scaffold, uses root navigator key)
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.deleteData,
+        name: 'deleteData',
+        builder: (context, state) => const DeleteDataScreen(),
+      ),
+
+      // Feedback route (outside tab scaffold, uses root navigator key)
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.feedback,
+        name: 'feedback',
+        builder: (context, state) => const FeedbackScreen(),
+      ),
+
+      // 4 Main Tabs StatefulShellRoute
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainScaffold(navigationShell: navigationShell);
+        },
+        branches: [
+          // Branch 1: Home (Trang chủ)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.home,
+                name: 'home',
+                builder: (context, state) {
+                  final q = state.uri.queryParameters['q'];
+                  return HomeScreen(initialQuery: q);
+                },
+              ),
+            ],
+          ),
+
+          // Branch 2: AI Assistant (Hỏi trợ lý AI)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.chat,
+                name: 'chat',
+                builder: (context, state) {
+                  return ChatScreen(extra: state.extra);
+                },
+              ),
+            ],
+          ),
+
+          // Branch 3: My Cases (Hồ sơ của tôi)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.myCases,
+                name: 'myCases',
+                builder: (context, state) => const MyCasesScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    name: 'myCaseDetail',
+                    builder: (context, state) {
+                      final id = state.pathParameters['id'] ?? '';
+                      return MyCaseDetailScreen(id: id);
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'check',
+                        name: 'myCaseCheck',
+                        builder: (context, state) {
+                          final id = state.pathParameters['id'] ?? '';
+                          return MyCaseCheckScreen(id: id);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Branch 4: Settings (Cài đặt)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.settings,
+                name: 'settings',
+                builder: (context, state) => const SettingsScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
 });
-
-/// Home screen – minimal UI for verifying the app runs.
-/// Replace with a proper feature screen as development progresses.
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    Icons.account_balance_rounded,
-                    size: 44,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  'DVC Guide',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Tra cứu thủ tục hành chính bằng AI',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Core Foundation v0.1.0',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 48),
-                FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Bắt đầu tra cứu'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.chat_bubble_outline_rounded),
-                  label: const Text('Hỏi AI hỗ trợ'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

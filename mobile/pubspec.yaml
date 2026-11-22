@@ -5,10 +5,12 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: ^3.13.1
+     sdk: ^3.11.0
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
@@ -33,6 +35,9 @@ dependencies:
   # ── Utilities ─────────────────────────────────────────────────────────────
   equatable: ^2.0.7
   logger: ^2.5.0
+  url_launcher: ^6.3.3
+  flutter_local_notifications: ^23.0.3
+  timezone: ^0.11.2
 
 dev_dependencies:
   flutter_test:
@@ -41,8 +46,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
   # ── Code Generation ────────────────────────────────────────────────────────
-  # Note: build_runner + freezed + json_serializable are for future use
-  # when creating data models with @freezed and @JsonSerializable annotations
   build_runner: ^2.4.13
   freezed: ^2.5.7
   json_serializable: ^6.9.0
