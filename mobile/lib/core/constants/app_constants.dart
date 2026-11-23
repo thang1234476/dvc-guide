@@ -50,4 +50,11 @@ class AppConstants {
   static const int kReminderMinute = 0;
   static const String kNotificationTimeZone = 'Asia/Ho_Chi_Minh';
   static const String kReminderChannelId = 'dvc_case_reminders';
+
+    /// true = dùng dữ liệu giả cho auth (không cần backend).
+  /// Chạy: flutter run --dart-define=USE_MOCK_AUTH=true
+  static const bool useMockAuth = bool.fromEnvironment(
+    'USE_MOCK_AUTH',
+    defaultValue: false,
+  );
 }
