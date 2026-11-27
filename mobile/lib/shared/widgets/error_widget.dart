@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_strings.dart';
 
 /// Generic error display widget for error states in screens.
 class AppErrorWidget extends StatelessWidget {
@@ -27,7 +28,7 @@ class AppErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Đã xảy ra lỗi',
+              AppStrings.errorOccurred,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.error,
                 fontWeight: FontWeight.w600,
@@ -46,7 +47,8 @@ class AppErrorWidget extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Thử lại'),
+                label: const Text(AppStrings.retry),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
               ),
             ],
           ],

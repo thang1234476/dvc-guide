@@ -31,4 +31,42 @@ class AppConstants {
   // ── App Info ─────────────────────────────────────────────────────────────────
   static const String appName = 'DVC Guide';
   static const String appVersion = '0.1.0';
+
+  // ── Auth Gate Configuration ──────────────────────────────────────────────────
+  /// When true, guests see the login gate on every launch.
+  static const bool kShowLoginGateEveryLaunch = false;
+  static const String kAuthGateSeenKey = 'auth_gate_seen_v1';
+
+  // ── Find Agency & Location Preferences ───────────────────────────────────────
+  static const String kLastSelectedDiaPhuongKey = 'last_selected_dia_phuong_id';
+  static const bool kUseSampleData = true;
+
+  // ── Settings & Chat History Preferences ──────────────────────────────────────
+  static const String kRemindScheduleKey = 'remind_schedule_enabled';
+  static const String kChatConversationsKey = 'chat_conversations_v1';
+
+  // ── Case Reminders Configuration ──────────────────────────────────────────
+  static const int kReminderHour = 8;
+  static const int kReminderMinute = 0;
+  static const String kNotificationTimeZone = 'Asia/Ho_Chi_Minh';
+  static const String kReminderChannelId = 'dvc_case_reminders';
+
+    /// true = dùng dữ liệu giả cho auth (không cần backend).
+  /// Chạy: flutter run --dart-define=USE_MOCK_AUTH=true
+  static const bool useMockAuth = bool.fromEnvironment(
+    'USE_MOCK_AUTH',
+    defaultValue: false,
+  );
+
+    /// true = dùng dữ liệu giả cho thủ tục.
+  /// Chạy: flutter run --dart-define=USE_MOCK_PROCEDURE=true
+  static const bool useMockProcedure = bool.fromEnvironment(
+    'USE_MOCK_PROCEDURE',
+    defaultValue: false,
+  );
+
+    static const bool useMockFeedback = bool.fromEnvironment(
+    'USE_MOCK_FEEDBACK',
+    defaultValue: false,
+  );
 }

@@ -1,23 +1,24 @@
 import 'package:dio/dio.dart';
+import '../../../features/auth/data/datasources/token_storage.dart';
 
 /// Auth interceptor – adds Authorization header to requests.
-///
-/// Currently a placeholder. Will be implemented when JWT authentication is added.
-/// Future implementation:
-/// 1. Read JWT token from flutter_secure_storage
-/// 2. Add `Authorization: Bearer <token>` header
-/// 3. Handle 401 responses by refreshing the token
+/// Reads JWT token from [TokenStorage] and adds `Authorization: Bearer <token>` when present.
 class AuthInterceptor extends Interceptor {
+  final TokenStorage? _tokenStorage;
+
+  AuthInterceptor({TokenStorage? tokenStorage})
+      : _tokenStorage = tokenStorage;
+
   @override
   void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
-  ) {
-    // TODO: Add JWT token when authentication is implemented
-    // final token = await _secureStorage.read(key: 'access_token');
-    // if (token != null) {
-    //   options.headers['Authorization'] = 'Bearer $token';
-    // }
+  ) async {
+    final storage = _tokenStorage ?? SecureTokenStorage();
+    final token = await storage.readToken();
+    if (token != null && token.isNotEmpty) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
     handler.next(options);
   }
 }
