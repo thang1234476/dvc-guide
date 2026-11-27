@@ -4,6 +4,7 @@ import '../../data/repositories/auth_repository_provider.dart';
 import '../../domain/exceptions/auth_exception.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_state.dart';
+import 'token_storage_provider.dart';
 
 class AuthController extends Notifier<AuthState> {
   late AuthRepository _repo;
@@ -17,7 +18,28 @@ class AuthController extends Notifier<AuthState> {
   }
 
   /// Khôi phục phiên làm việc từ TokenStorage khi mở app
+    /// Khôi phục phiên khi mở app, gồm hai pha.
   Future<void> restoreSession() async {
+    // Pha 1: có token và thông tin lưu sẵn thì vào luôn, không chờ mạng.
+    final storage = ref.read(tokenStorageProvider);
+    var restoredLocally = false;
+    try {
+      final token = await storage.readToken();
+      final info = await storage.readUserInfo();
+      if (token != null && token.isNotEmpty && info != null) {
+        state = state.copyWith(
+          status: AuthStatus.authenticated,
+          user: () => AuthUser(id: info.id, email: info.email),
+          isLoading: false,
+          errorMessage: () => null,
+        );
+        restoredLocally = true;
+      }
+    } catch (_) {
+      // đọc kho lưu trữ lỗi: để pha 2 quyết định
+    }
+
+    // Pha 2: hỏi server để lấy hồ sơ đầy đủ và phát hiện token hết hạn.
     try {
       final user = await _repo.currentUser();
       if (user != null) {
@@ -36,12 +58,15 @@ class AuthController extends Notifier<AuthState> {
         );
       }
     } catch (_) {
-      state = state.copyWith(
-        status: AuthStatus.guest,
-        user: () => null,
-        isLoading: false,
-        errorMessage: () => null,
-      );
+      // Lỗi bất ngờ: giữ phiên cục bộ nếu có, không thì coi như chưa đăng nhập.
+      if (!restoredLocally) {
+        state = state.copyWith(
+          status: AuthStatus.guest,
+          user: () => null,
+          isLoading: false,
+          errorMessage: () => null,
+        );
+      }
     }
   }
 

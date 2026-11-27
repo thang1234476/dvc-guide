@@ -14,4 +14,13 @@ class ApiEndpoints {
 
   // ── Catalog ──────────────────────────────────────────────────────────────────
   static const String localities = '/api/v1/catalog/localities';
+
+    // ── Procedures & catalog ─────────────────────────────────────────────────────
+  static const String procedures = '/api/v1/procedures';
+  static const String fields = '/api/v1/catalog/fields';
+  static String procedureById(int id) => '/api/v1/procedures/$id';
+  static String procedureAgencies(int id) => '/api/v1/procedures/$id/agencies';
+
+    // ── Feedback ─────────────────────────────────────────────────────────────────
+  static const String feedback = '/api/v1/feedback';
 }

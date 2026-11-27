@@ -18,6 +18,9 @@ import '../../features/procedure/presentation/screens/procedure_detail_screen.da
 import '../../features/settings/presentation/screens/delete_data_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../shared/widgets/main_scaffold.dart';
+import '../../core/utils/redirect_utils.dart';
+import '../../features/auth/presentation/viewmodels/auth_controller.dart';
+import '../../features/auth/presentation/viewmodels/auth_state.dart';
 
 /// Route path constants and helper path builders
 class AppRoutes {
@@ -50,9 +53,50 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Application router provider using go_router with StatefulShellRoute.
 final appRouterProvider = Provider<GoRouter>((ref) {
+  // Báo cho router đánh giá lại `redirect` mỗi khi trạng thái đăng nhập đổi.
+  // Không dùng ref.watch ở đây: nó sẽ tạo lại GoRouter và mất ngăn xếp màn hình.
+    final authRefresh = ValueNotifier<AuthStatus>(
+    ref.read(authControllerProvider).status,
+  );
+
+  var sessionEnded = false; // true = vừa đăng xuất hoặc hết phiên
+  ref.listen<AuthState>(authControllerProvider, (previous, next) {
+    if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+      sessionEnded = true;
+    }
+    if (next.isAuthenticated) sessionEnded = false;
+    authRefresh.value = next.status;
+  });
+  ref.onDispose(authRefresh.dispose);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
+    refreshListenable: authRefresh,
+    redirect: (context, state) {
+      final loc = state.matchedLocation;
+      if (loc == AppRoutes.splash) return null; // splash tự chờ rồi chuyển đi
+
+      final loggedIn = ref.read(authControllerProvider).isAuthenticated;
+      final isAuthPage = loc == AppRoutes.login || loc == AppRoutes.register;
+      final isPublic = isAuthPage || loc == AppRoutes.onboarding;
+
+      // Chưa đăng nhập: chỉ được ở onboarding / đăng nhập / đăng ký.
+            if (!loggedIn) {
+        if (isPublic) return null;
+        // Vừa đăng xuất / hết phiên: về đăng nhập trơn.
+        if (sessionEnded) return AppRoutes.login;
+        // Mở app từ liên kết/thông báo: nhớ đích để đăng nhập xong đi tiếp.
+        final from = Uri.encodeComponent(state.uri.toString());
+        return '${AppRoutes.login}?from=$from';
+      }
+
+      // Đã đăng nhập mà còn đứng ở màn đăng nhập/đăng ký: đi tiếp tới đích.
+      if (isAuthPage) {
+        return sanitizeRedirectUri(state.uri.queryParameters['from']);
+      }
+      return null;
+    },
     debugLogDiagnostics: false,
     routes: [
       GoRoute(
@@ -96,10 +140,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           final thIdStr = state.uri.queryParameters['truongHopId'];
           final truongHopId = thIdStr != null ? int.tryParse(thIdStr) : null;
-          return ProcedureDetailScreen(
-            id: id,
-            initialTruongHopId: truongHopId,
-          );
+          return ProcedureDetailScreen(id: id, initialTruongHopId: truongHopId);
         },
       ),
 
@@ -109,7 +150,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/find-agency',
         name: 'findAgency',
         builder: (context, state) {
-          final thuTucId = int.tryParse(state.uri.queryParameters['thuTucId'] ?? '') ?? 0;
+          final thuTucId =
+              int.tryParse(state.uri.queryParameters['thuTucId'] ?? '') ?? 0;
           final caseId = state.uri.queryParameters['caseId'] ?? '';
           final slot = state.uri.queryParameters['slot'] ?? 'du_dinh';
           final from = state.uri.queryParameters['from'] ?? 'procedure';

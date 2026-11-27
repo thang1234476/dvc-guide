@@ -57,4 +57,16 @@ class AppConstants {
     'USE_MOCK_AUTH',
     defaultValue: false,
   );
+
+    /// true = dùng dữ liệu giả cho thủ tục.
+  /// Chạy: flutter run --dart-define=USE_MOCK_PROCEDURE=true
+  static const bool useMockProcedure = bool.fromEnvironment(
+    'USE_MOCK_PROCEDURE',
+    defaultValue: false,
+  );
+
+    static const bool useMockFeedback = bool.fromEnvironment(
+    'USE_MOCK_FEEDBACK',
+    defaultValue: false,
+  );
 }

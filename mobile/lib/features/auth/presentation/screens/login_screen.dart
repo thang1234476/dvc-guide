@@ -9,6 +9,7 @@ import '../../../../core/utils/redirect_utils.dart';
 import '../../data/repositories/auth_gate_repository.dart';
 import '../../domain/exceptions/auth_exception.dart';
 import '../viewmodels/auth_controller.dart';
+import '../../../../core/constants/app_constants.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final String? from;
@@ -45,15 +46,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     context.go(target);
   }
 
-  Future<void> _handleContinueAsGuest() async {
-    await ref.read(authGateRepositoryProvider).markAuthGateAsSeen();
-    if (!mounted) return;
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(AppRoutes.home);
-    }
-  }
+  // Future<void> _handleContinueAsGuest() async {
+  //   await ref.read(authGateRepositoryProvider).markAuthGateAsSeen();
+  //   if (!mounted) return;
+  //   if (context.canPop()) {
+  //     context.pop();
+  //   } else {
+  //     context.go(AppRoutes.home);
+  //   }
+  // }
 
   Future<void> _handleLogin() async {
     if (_isSubmitting) return;
@@ -173,7 +174,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 24),
 
                     // Debug demo hint (kDebugMode only)
-                    if (kDebugMode) ...[
+                    if (kDebugMode && AppConstants.useMockAuth) ...[
                       InkWell(
                         onTap: _isSubmitting ? null : _fillDemoAccount,
                         borderRadius: BorderRadius.circular(8),
@@ -357,25 +358,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    // const SizedBox(height: 12),
 
-                    // Continue as guest button
-                    SizedBox(
-                      height: 48,
-                      child: OutlinedButton(
-                        key: const ValueKey('login_guest_button'),
-                        onPressed: _isSubmitting
-                            ? null
-                            : _handleContinueAsGuest,
-                        child: const Text(
-                          AppStrings.continueAsGuest,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                    // // Continue as guest button
+                    // SizedBox(
+                    //   height: 48,
+                    //   child: OutlinedButton(
+                    //     key: const ValueKey('login_guest_button'),
+                    //     onPressed: _isSubmitting
+                    //         ? null
+                    //         : _handleContinueAsGuest,
+                    //     child: const Text(
+                    //       AppStrings.continueAsGuest,
+                    //       style: TextStyle(
+                    //         fontSize: 15,
+                    //         fontWeight: FontWeight.w600,
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
                     const SizedBox(height: 24),
 
                     // Link to register

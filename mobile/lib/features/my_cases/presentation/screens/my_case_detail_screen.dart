@@ -13,14 +13,10 @@ import 'package:dvc_guide_mobile/shared/widgets/error_widget.dart';
 import 'package:dvc_guide_mobile/shared/widgets/section_card.dart';
 import 'package:dvc_guide_mobile/shared/widgets/skeleton_loading.dart';
 
-
 class MyCaseDetailScreen extends ConsumerStatefulWidget {
   final String id;
 
-  const MyCaseDetailScreen({
-    super.key,
-    required this.id,
-  });
+  const MyCaseDetailScreen({super.key, required this.id});
 
   @override
   ConsumerState<MyCaseDetailScreen> createState() => _MyCaseDetailScreenState();
@@ -33,7 +29,7 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
   late final FocusNode _ghiChuFocusNode;
 
   bool _initializedControllers = false;
-    late MyCaseDetailViewModel _notifier;
+  late MyCaseDetailViewModel _notifier;
   HoSoCuaToi? _latestCase;
 
   @override
@@ -70,7 +66,7 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
     }
   }
 
-    void _autoSaveTextInputs() {
+  void _autoSaveTextInputs() {
     final currentCase = _latestCase;
     if (currentCase == null) return;
 
@@ -86,7 +82,9 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
       _latestCase = currentCase.copyWith(maHoSo: maHoSo, ghiChu: ghiChu);
 
       // Lưu cố gắng hết sức: nếu màn hình đã bị gỡ thì bỏ qua lỗi, không làm app báo đỏ.
-      _notifier.updateDetails(maHoSo: maHoSo, ghiChu: ghiChu).catchError((_) {});
+      _notifier
+          .updateDetails(maHoSo: maHoSo, ghiChu: ghiChu)
+          .catchError((_) {});
     }
   }
 
@@ -203,9 +201,7 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
             child: const Text(AppStrings.cancelAction),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(AppStrings.deleteAction),
           ),
@@ -214,17 +210,22 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
     );
 
     if (confirmed == true && context.mounted) {
+      // Lấy sẵn trước khi chuyển màn: sau context.go thì ref của màn này
+      // không còn dùng được.
+      final listNotifier = ref.read(myCasesViewModelProvider.notifier);
+      final messenger = ScaffoldMessenger.of(context);
+
       await notifier.deleteCase();
       if (context.mounted) {
         context.go(AppRoutes.myCases);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
           SnackBar(
             content: const Text(AppStrings.caseDeleted),
             action: SnackBarAction(
               label: AppStrings.undoAction,
               onPressed: () {
-                ref.read(myCasesViewModelProvider.notifier).restoreCase(caseItem, 0);
+                listNotifier.restoreCase(caseItem, 0);
               },
             ),
             duration: const Duration(seconds: 4),
@@ -256,7 +257,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Text(
                     AppStrings.selectYourCase,
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -276,15 +280,22 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                         title: Text(
                           th.ten,
                           style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? theme.colorScheme.primary : null,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : null,
                           ),
                         ),
                         subtitle: th.cauHoiPhanLoai != null
                             ? Text(th.cauHoiPhanLoai!)
                             : (th.dieuKien != null ? Text(th.dieuKien!) : null),
                         trailing: isSelected
-                            ? Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary)
+                            ? Icon(
+                                Icons.check_circle_rounded,
+                                color: theme.colorScheme.primary,
+                              )
                             : null,
                         onTap: () {
                           Navigator.of(sheetContext).pop();
@@ -302,13 +313,13 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = ref.watch(myCaseDetailViewModelProvider(widget.id));
-    final notifier = ref.read(myCaseDetailViewModelProvider(widget.id).notifier);
+    final notifier = ref.read(
+      myCaseDetailViewModelProvider(widget.id).notifier,
+    );
 
     if (state.isLoading) {
       return Scaffold(
@@ -328,7 +339,9 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
       );
     }
 
-    if (state.error != null || state.caseItem == null || state.procedure == null) {
+    if (state.error != null ||
+        state.caseItem == null ||
+        state.procedure == null) {
       return Scaffold(
         appBar: AppBar(title: const Text(AppStrings.caseDetailTitle)),
         body: AppErrorWidget(
@@ -339,7 +352,7 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
     }
 
     final caseItem = state.caseItem!;
-        _latestCase = caseItem;
+    _latestCase = caseItem;
     final procedure = state.procedure!;
     _syncControllersIfFirstTime(caseItem);
 
@@ -372,7 +385,9 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
       }
     }
     final totalPapers = applicablePapers.length;
-    final progress = totalPapers > 0 ? (daCoCount / totalPapers).clamp(0.0, 1.0) : 0.0;
+    final progress = totalPapers > 0
+        ? (daCoCount / totalPapers).clamp(0.0, 1.0)
+        : 0.0;
 
     // Agencies display name
     final intendedAgency = procedure.coQuan
@@ -402,7 +417,8 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               tooltip: AppStrings.editCaseName,
-              onPressed: () => _showEditNameDialog(context, notifier, caseItem.tenHoSo),
+              onPressed: () =>
+                  _showEditNameDialog(context, notifier, caseItem.tenHoSo),
             ),
             // Menu "Xóa hồ sơ"
             PopupMenuButton<String>(
@@ -418,7 +434,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        color: theme.colorScheme.error,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         AppStrings.deleteAction,
@@ -519,7 +538,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
 
                 // ── C. Thanh trạng thái 5 bước ngang cuộn được ───────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   child: Text(
                     AppStrings.statusTimeline,
                     style: theme.textTheme.titleSmall?.copyWith(
@@ -530,7 +552,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                 SizedBox(
                   height: 52,
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     scrollDirection: Axis.horizontal,
                     itemCount: TrangThaiHoSo.values.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 8),
@@ -542,11 +567,15 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                         borderRadius: BorderRadius.circular(20),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: isCurrent
                                 ? theme.colorScheme.primaryContainer
-                                : theme.colorScheme.surfaceContainerHighest.withAlpha(100),
+                                : theme.colorScheme.surfaceContainerHighest
+                                      .withAlpha(100),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isCurrent
@@ -573,7 +602,9 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                                   color: isCurrent
                                       ? theme.colorScheme.onPrimaryContainer
                                       : theme.colorScheme.onSurface,
-                                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -586,7 +617,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
 
                 // ── D. Nút Kiểm tra giấy tờ & Tóm tắt ────────────────────────
                 SectionCard(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   onTap: () => context.push('/my-cases/${caseItem.id}/check'),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -619,15 +653,19 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                                 children: [
                                   Text(
                                     '$daCoCount',
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onPrimaryContainer,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: theme
+                                              .colorScheme
+                                              .onPrimaryContainer,
+                                        ),
                                   ),
                                   Text(
                                     AppStrings.readyCountLabel,
                                     style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.onPrimaryContainer,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
                                     ),
                                   ),
                                 ],
@@ -646,10 +684,13 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                                 children: [
                                   Text(
                                     '$chuaCoCount',
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onErrorContainer,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: theme
+                                              .colorScheme
+                                              .onErrorContainer,
+                                        ),
                                   ),
                                   Text(
                                     AppStrings.missingCountLabel,
@@ -666,17 +707,21 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Column(
                                 children: [
                                   Text(
                                     '$chuaRoCount',
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                   ),
                                   Text(
                                     AppStrings.unknownCountLabel,
@@ -698,7 +743,8 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                       ),
                       const SizedBox(height: 14),
                       FilledButton.tonalIcon(
-                        onPressed: () => context.push('/my-cases/${caseItem.id}/check'),
+                        onPressed: () =>
+                            context.push('/my-cases/${caseItem.id}/check'),
                         icon: const Icon(Icons.checklist_rounded, size: 18),
                         label: const Text(AppStrings.checkPapersAction),
                         style: FilledButton.styleFrom(
@@ -711,14 +757,20 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
 
                 // ── E. Nơi dự định nộp & Nơi thực tế đã nộp ───────────────────
                 SectionCard(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Nơi dự định nộp
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.place_outlined, color: theme.colorScheme.primary),
+                        leading: Icon(
+                          Icons.place_outlined,
+                          color: theme.colorScheme.primary,
+                        ),
                         title: const Text(
                           AppStrings.intendedAgency,
                           style: TextStyle(fontWeight: FontWeight.w600),
@@ -743,7 +795,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                       // Nơi thực tế đã nộp
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.domain_outlined, color: theme.colorScheme.secondary),
+                        leading: Icon(
+                          Icons.domain_outlined,
+                          color: theme.colorScheme.secondary,
+                        ),
                         title: const Text(
                           AppStrings.actualAgency,
                           style: TextStyle(fontWeight: FontWeight.w600),
@@ -770,7 +825,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
 
                 // ── F. Ngày nộp, Ngày hẹn, Mã hồ sơ, Ghi chú ──────────────────
                 SectionCard(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -787,7 +845,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             children: [
-                              Icon(Icons.event_available_outlined, color: theme.colorScheme.primary),
+                              Icon(
+                                Icons.event_available_outlined,
+                                color: theme.colorScheme.primary,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -795,27 +856,36 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                                   children: [
                                     Text(
                                       AppStrings.submittedDate,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       caseItem.ngayNop != null
                                           ? _formatDate(caseItem.ngayNop!)
                                           : AppStrings.unselected,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ],
                                 ),
                               ),
                               if (caseItem.ngayNop != null)
                                 IconButton(
-                                  icon: const Icon(Icons.clear_rounded, size: 20),
+                                  icon: const Icon(
+                                    Icons.clear_rounded,
+                                    size: 20,
+                                  ),
                                   tooltip: AppStrings.clearSelection,
-                                  onPressed: () => notifier.updateDetails(clearNgayNop: true),
+                                  onPressed: () => notifier.updateDetails(
+                                    clearNgayNop: true,
+                                  ),
                                 ),
                             ],
                           ),
@@ -836,7 +906,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             children: [
-                              Icon(Icons.event_outlined, color: theme.colorScheme.primary),
+                              Icon(
+                                Icons.event_outlined,
+                                color: theme.colorScheme.primary,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -844,27 +917,36 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                                   children: [
                                     Text(
                                       AppStrings.expectedReturnDate,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       caseItem.ngayHen != null
                                           ? _formatDate(caseItem.ngayHen!)
                                           : AppStrings.unselected,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ],
                                 ),
                               ),
                               if (caseItem.ngayHen != null)
                                 IconButton(
-                                  icon: const Icon(Icons.clear_rounded, size: 20),
+                                  icon: const Icon(
+                                    Icons.clear_rounded,
+                                    size: 20,
+                                  ),
                                   tooltip: AppStrings.clearSelection,
-                                  onPressed: () => notifier.updateDetails(clearNgayHen: true),
+                                  onPressed: () => notifier.updateDetails(
+                                    clearNgayHen: true,
+                                  ),
                                 ),
                             ],
                           ),
@@ -880,8 +962,13 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                         decoration: InputDecoration(
                           labelText: AppStrings.caseCode,
                           hintText: AppStrings.caseCodeHint,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                         onEditingComplete: _autoSaveTextInputs,
                       ),
@@ -897,8 +984,13 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                           labelText: AppStrings.notes,
                           hintText: AppStrings.notesHint,
                           alignLabelWithHint: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                         onEditingComplete: _autoSaveTextInputs,
                       ),
@@ -912,7 +1004,10 @@ class _MyCaseDetailScreenState extends ConsumerState<MyCaseDetailScreen> {
                   child: FilledButton.tonalIcon(
                     onPressed: () {
                       _autoSaveTextInputs();
-                      context.push(AppRoutes.chat, extra: caseItem.thuTuc.maThuTuc);
+                      context.push(
+                        AppRoutes.chat,
+                        extra: caseItem.thuTuc.maThuTuc,
+                      );
                     },
                     icon: const Icon(Icons.smart_toy_outlined, size: 20),
                     label: const Text(

@@ -5,6 +5,7 @@ import 'package:dvc_guide_mobile/features/procedure/data/models/procedure_models
 import 'package:dvc_guide_mobile/features/procedure/data/repositories/favorites_repository_provider.dart';
 import 'package:dvc_guide_mobile/features/procedure/data/repositories/procedure_repository_provider.dart';
 import 'package:dvc_guide_mobile/shared/enums/procedure_enums.dart';
+import 'package:dvc_guide_mobile/features/auth/presentation/viewmodels/auth_controller.dart';
 
 class HomeState {
   final bool isLoading;
@@ -153,6 +154,16 @@ class HomeViewModel extends StateNotifier<HomeState> {
     }
   }
 
+    /// Gọi khi đổi tài khoản: bỏ dữ liệu của người trước.
+  void resetForUser() {
+    if (_ref.read(authControllerProvider).isAuthenticated) {
+      state = const HomeState(isLoading: true);
+      loadHomeData();
+    } else {
+      state = const HomeState();
+    }
+  }
+
   void onSearchChanged(String query) {
     if (state.searchQuery == query) return;
     state = state.copyWith(searchQuery: query);
@@ -184,21 +195,24 @@ class HomeViewModel extends StateNotifier<HomeState> {
     fetchProcedures(resetPage: true);
   }
 
-  Future<void> toggleFavorite(int procedureId) async {
-    final favRepo = _ref.read(favoritesRepositoryProvider);
-    final isNowFav = await favRepo.toggle(procedureId);
+    Future<void> toggleFavorite(int procedureId) async {
+    try {
+      final favRepo = _ref.read(favoritesRepositoryProvider);
+      final isNowFav = await favRepo.toggle(procedureId);
 
-    final updated = Set<int>.from(state.favoriteIds);
-    if (isNowFav) {
-      updated.add(procedureId);
-    } else {
-      updated.remove(procedureId);
-    }
-    state = state.copyWith(favoriteIds: updated);
+      final updated = Set<int>.from(state.favoriteIds);
+      if (isNowFav) {
+        updated.add(procedureId);
+      } else {
+        updated.remove(procedureId);
+      }
+      state = state.copyWith(favoriteIds: updated);
 
-    // If filtering by favorites only, refresh list
-    if (state.onlyFavorites) {
-      fetchProcedures(resetPage: true);
+      if (state.onlyFavorites) {
+        fetchProcedures(resetPage: true);
+      }
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
     }
   }
 
@@ -221,5 +235,12 @@ class HomeViewModel extends StateNotifier<HomeState> {
 
 final homeViewModelProvider =
     StateNotifierProvider<HomeViewModel, HomeState>((ref) {
-  return HomeViewModel(ref);
+  final vm = HomeViewModel(ref);
+  ref.listen<String?>(
+    authControllerProvider.select((s) => s.user?.id),
+    (previous, next) {
+      if (previous != next) vm.resetForUser();
+    },
+  );
+  return vm;
 });

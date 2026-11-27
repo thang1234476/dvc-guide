@@ -2,13 +2,14 @@ import '../../app/router/app_router.dart';
 import '../../features/auth/presentation/viewmodels/auth_state.dart';
 import '../constants/app_constants.dart';
 
-/// Pure function resolving the destination route on app launch or after onboarding.
+/// Chọn màn hình đầu tiên khi mở app hoặc sau onboarding.
 ///
-/// Priority:
-/// 1. `!onboardingSeen` -> [AppRoutes.onboarding]
-/// 2. `status == AuthStatus.authenticated` -> [AppRoutes.home] ('/')
-/// 3. `!authGateSeen` (or [showLoginGateEveryLaunch] is true) -> [AppRoutes.login]
-/// 4. Otherwise -> [AppRoutes.home] ('/')
+/// 1. Chưa xem onboarding -> [AppRoutes.onboarding]
+/// 2. Đã đăng nhập        -> [AppRoutes.home]
+/// 3. Còn lại             -> [AppRoutes.login] (bắt buộc đăng nhập, không có chế độ khách)
+///
+/// [authGateSeen] và [showLoginGateEveryLaunch] được giữ lại cho khỏi sửa
+/// các nơi gọi, nhưng không còn ảnh hưởng kết quả.
 String resolveEntryRoute({
   required bool onboardingSeen,
   required bool authGateSeen,
@@ -21,8 +22,5 @@ String resolveEntryRoute({
   if (status == AuthStatus.authenticated) {
     return AppRoutes.home;
   }
-  if (showLoginGateEveryLaunch || !authGateSeen) {
-    return AppRoutes.login;
-  }
-  return AppRoutes.home;
+  return AppRoutes.login;
 }
