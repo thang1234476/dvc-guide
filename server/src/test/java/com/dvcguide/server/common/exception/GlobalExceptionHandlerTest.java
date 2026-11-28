@@ -40,6 +40,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void missingRouteReturns404InsteadOfUnexpectedServerError() throws Exception {
+        mockMvc.perform(get("/api/v1/missing-endpoint"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Không tìm thấy đường dẫn được yêu cầu."));
+    }
+
+    @Test
     @DisplayName("ApiResponse error factory creates correct error structure")
     void apiResponse_errorFactory_createsCorrectStructure() {
         var response = com.dvcguide.server.common.response.ApiResponse.error("Something went wrong");

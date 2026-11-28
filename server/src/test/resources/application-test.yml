@@ -18,3 +18,7 @@ logging:
     root: WARN
     com.dvcguide: INFO
 
+integration:
+  rag-sync:
+    enabled: false
+

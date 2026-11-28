@@ -29,7 +29,7 @@ public class RequiredDocument {
     @Column(name = "nhom", length = 255)
     private String nhom;
 
-    @Column(name = "ten_giay_to", nullable = false, length = 1000)
+    @Column(name = "ten_giay_to", nullable = false, columnDefinition = "TEXT")
     private String tenGiayTo;
 
     @Column(name = "truong_hop_goc", columnDefinition = "TEXT")

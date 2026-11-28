@@ -1,8 +1,10 @@
 # tthc_rag.py - Truy xuất (FAISS + BM25 + RRF + Reranker), cập nhật dữ liệu tức thì, kiểm tra sau khi sinh.
 import os, re, json, time, shutil, hashlib, threading
+from copy import deepcopy
 from collections import defaultdict
 import numpy as np
 from app.services import variants as tthc_variants
+from app.services.procedure_sections import supplemental_sections
 
 EMB_NAME, RERANK_NAME = 'BAAI/bge-m3', 'BAAI/bge-reranker-v2-m3'
 M_CHUNKS, RRF_K = 50, 60
@@ -141,7 +143,7 @@ class _State:
     pass
 
 class Retriever:
-    def __init__(self, data_path, cache_dir, rerank_n=30, embed_fn=None, rerank_fn=None, tok_fn=None, log=print):
+    def __init__(self, data_path, cache_dir, rerank_n=30, embed_fn=None, rerank_fn=None, tok_fn=None, log=print, runtime_path=None):
         self.data_path, self.cache_dir, self.rerank_n, self.log = data_path, cache_dir, rerank_n, log
         os.makedirs(cache_dir, exist_ok=True)
         self.backup_dir = os.path.join(os.path.dirname(os.path.abspath(data_path)), 'backups')
@@ -150,8 +152,16 @@ class Retriever:
         self.tok = tok_fn or _default_tok()
         self._wlock = threading.Lock()
         self._vec, self._tokc = {}, {}
+        self.runtime_path = runtime_path or str(data_path) + '.rag-state.json'
+        self.versions = {}
         self._load_caches()
-        self.state = self._build(self._read_procs())
+        if os.path.isfile(self.runtime_path):
+            with open(self.runtime_path, encoding='utf-8') as f:
+                saved = json.load(f)
+            self.versions = saved['versions']
+            self.state = self._build({p['ma_thu_tuc']: p for p in saved['procedures']})
+        else:
+            self.state = self._build(self._read_procs())
 
     # --- dữ liệu ---
     def _read_procs(self):
@@ -215,6 +225,9 @@ class Retriever:
         for ma, p in procs.items():
             for t in chunks_field_title(p):
                 texts.append(t); pids.append(ma)
+            for title, value in supplemental_sections(p):
+                for part in split_long(value):
+                    texts.append(f"Thủ tục: {p['ten']}\n{title}: {part}"); pids.append(ma)
         hashes = [_h(t) for t in texts]
         if not self._vec and texts:
             self._seed_from_old_npy(texts, hashes)
@@ -238,9 +251,9 @@ class Retriever:
         return st
 
     # --- truy vấn ---
-    def search(self, query):
+    def search(self, query, state=None):
         # Trả về (danh sách mã thủ tục xếp hạng, điểm reranker tốt nhất mỗi thủ tục, by_id cùng phiên bản dữ liệu)
-        st = self.state
+        st = state if state is not None else self.state
         if not st.texts:
             return [], {}, st.by_id
         m = min(M_CHUNKS, len(st.texts))
@@ -256,6 +269,90 @@ class Retriever:
                 best[p] = float(scores[i]); pids.append(p)
         pids = tthc_variants.prefer_general(query, pids, best, st.by_id)     # ưu tiên thủ tục chung khi câu hỏi không nêu trường hợp đặc biệt
         return pids, best, st.by_id
+
+    def scoped_state(self, allowed):
+        """Use only the exact database versions authorized for this request."""
+        st = self.state
+        if allowed is None:
+            return st
+        wanted = {(a.procedure_id, a.code, a.version) for a in allowed}
+        by_id = {code: p for code, p in st.by_id.items()
+                 if (p.get('_sync', {}).get('procedure_id'), code,
+                     p.get('_sync', {}).get('version')) in wanted}
+        if len(by_id) == len(st.by_id):
+            return st
+        import faiss
+        from rank_bm25 import BM25Okapi
+        view = _State()
+        indexes = [i for i, code in enumerate(st.pids) if code in by_id]
+        view.by_id = by_id
+        view.texts = [st.texts[i] for i in indexes]
+        view.pids = [st.pids[i] for i in indexes]
+        if indexes:
+            view.emb = st.emb[indexes]
+            view.faiss = faiss.IndexFlatIP(view.emb.shape[1])
+            view.faiss.add(view.emb)
+            view.bm25 = BM25Okapi([self._tokc[_h(text)] for text in view.texts])
+        return view
+
+    def apply_sync(self, procedure_id, payload):
+        """Commit versions, tombstones and procedures in one durable snapshot."""
+        key = str(procedure_id)
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                                           separators=(',', ':')).encode('utf-8')).hexdigest()
+        with self._wlock:
+            current = self.versions.get(key)
+            if current and payload['version'] <= current['version']:
+                if payload['version'] == current['version'] and digest != current['digest']:
+                    raise ValueError('Cùng phiên bản nhưng nội dung đồng bộ khác nhau.')
+                return self._sync_result(procedure_id, current, False)
+            procs = dict(self.state.by_id)
+            for code, proc in list(procs.items()):
+                if proc.get('_sync', {}).get('procedure_id') == procedure_id:
+                    del procs[code]
+            code = payload['code']
+            occupied = procs.get(code)
+            if occupied and occupied.get('_sync', {}).get('procedure_id') not in (None, procedure_id):
+                if payload['active']:
+                    raise ValueError('Mã thủ tục đang thuộc một bản ghi khác. Hãy thử đồng bộ lại.')
+            else:
+                procs.pop(code, None)
+            if payload['active']:
+                proc = deepcopy(payload['procedure'])
+                errors = validate_procedure(proc)
+                if errors:
+                    raise ValueError('; '.join(errors))
+                proc['_sync'] = {'procedure_id': procedure_id, 'version': payload['version']}
+                procs[code] = proc
+            versions = dict(self.versions)
+            record = {'version': payload['version'], 'code': code, 'active': payload['active'], 'digest': digest}
+            versions[key] = record
+            new_state = self._build(procs)
+            folder = os.path.dirname(os.path.abspath(self.runtime_path))
+            os.makedirs(folder, exist_ok=True)
+            tmp = self.runtime_path + '.tmp'
+            try:
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump({'schema_version': 1, 'versions': versions, 'procedures': list(procs.values())},
+                              f, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, self.runtime_path)
+                directory = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            self.versions, self.state = versions, new_state
+            return self._sync_result(procedure_id, record, True)
+
+    def _sync_result(self, procedure_id, record, applied):
+        return {'procedure_id': procedure_id, 'version': record['version'], 'code': record['code'],
+                'active': record['active'], 'chunk_count': self.state.pids.count(record['code']) if record['active'] else 0,
+                'applied': applied}
 
     # --- cập nhật tức thì ---
     def upsert(self, proc):

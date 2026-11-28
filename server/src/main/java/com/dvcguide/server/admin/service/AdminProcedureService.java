@@ -1,11 +1,11 @@
 package com.dvcguide.server.admin.service;
 
+import com.dvcguide.server.admin.dto.ProcedureWriteRequest;
 import com.dvcguide.server.admin.entity.Administrator;
 import com.dvcguide.server.admin.entity.ChangeLog;
 import com.dvcguide.server.admin.repository.AdministratorRepository;
 import com.dvcguide.server.catalog.entity.ProcedureField;
 import com.dvcguide.server.common.exception.ResourceNotFoundException;
-import com.dvcguide.server.common.model.AdministrativeLevel;
 import com.dvcguide.server.common.model.ChangeAction;
 import com.dvcguide.server.common.model.ProcedureStatus;
 import com.dvcguide.server.common.util.VietnameseText;
@@ -17,7 +17,6 @@ import com.dvcguide.server.procedure.repository.ProcedureRepository;
 import com.dvcguide.server.procedure.service.ProcedureService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,12 +36,9 @@ public class AdminProcedureService {
     private final AdministratorRepository admins;
     private final EntityManager db;
     private final ObjectMapper json;
-
-    public record Input(@NotBlank @Size(max = 50) String code, @NotBlank @Size(max = 1000) String name,
-                        AdministrativeLevel level, @NotNull ProcedureStatus status, Integer version,
-                        @Size(max = 16000) String originalAgency, @Size(max = 16000) String audience,
-                        @Size(max = 16000) String conditions, @Size(max = 1000) String portalUrl,
-                        @Size(max = 500) String source, @NotNull @Size(max = 50) List<@NotNull @Positive Integer> fieldIds) {}
+    private final RagSyncService ragSync;
+    private final ProcedureSourceService sources;
+    private final ProcedureContentWriter content;
 
     public record AdminProfile(int id, String email, String displayName, String role) {}
 
@@ -52,34 +48,45 @@ public class AdminProcedureService {
     }
 
     @Transactional
-    public ProcedureDetail create(Input request, String email) {
+    public ProcedureDetail create(ProcedureWriteRequest request, String email) {
         validateFields(request);
+        var payload = sources.prepare(request, json.createObjectNode());
+        validateContent(payload);
         Procedure row = new Procedure();
         apply(row, request);
         procedures.saveAndFlush(row);
+        content.replaceContent(row.getId(), json.convertValue(payload, com.dvcguide.server.admin.dto.CleanProcedureData.class));
         setFields(row.getId(), request.fieldIds(), List.of());
+        sources.store(row.getId(), payload);
         db.flush();
         var after = reader.detailAdmin(row.getId());
         audit(email, ChangeAction.tao, row.getId(), null, after);
+        ragSync.enqueue(row);
         return after;
     }
 
     @Transactional
-    public ProcedureDetail update(int id, Input request, String email) {
+    public ProcedureDetail update(int id, ProcedureWriteRequest request, String email) {
         Procedure row = lock(id, request.version());
         validateFields(request);
         var before = reader.detailAdmin(id);
+        var beforePayload = sources.export(row);
+        var payload = sources.prepare(request, beforePayload);
+        validateContent(payload);
         List<Integer> oldFields = before.procedure().fields().stream().map(ProcedureSummary.Field::id).toList();
-        if (editableValues(before).equals(request)) {
+        if (sameValues(before, request) && beforePayload.equals(payload)) {
             return before;
         }
         apply(row, request);
         row.setPhienBan(row.getPhienBan() + 1);
+        content.update(id, json.convertValue(payload, com.dvcguide.server.admin.dto.CleanProcedureData.class), beforePayload, payload);
         setFields(id, request.fieldIds(), oldFields);
+        sources.store(id, payload);
         db.flush();
         var after = reader.detailAdmin(id);
         audit(email, row.getTrangThai() == ProcedureStatus.ngung && before.procedure().status() != ProcedureStatus.ngung
                 ? ChangeAction.xoa : ChangeAction.sua, id, before, after);
+        ragSync.enqueue(row);
         return after;
     }
 
@@ -94,13 +101,25 @@ public class AdminProcedureService {
         row.setPhienBan(row.getPhienBan() + 1);
         db.flush();
         audit(email, ChangeAction.xoa, id, before, reader.detailAdmin(id));
+        ragSync.enqueue(row);
     }
 
-    private Input editableValues(ProcedureDetail detail) {
+    private boolean sameValues(ProcedureDetail detail, ProcedureWriteRequest request) {
         var p = detail.procedure();
-        return new Input(p.code(), p.name(), p.level(), p.status(), p.version(), detail.originalAgency(),
+        var previous = new ProcedureWriteRequest(p.code(), p.name(), p.level(), p.status(), p.version(), detail.originalAgency(),
                 detail.audience(), detail.conditions(), detail.portalUrl(), detail.source(),
                 p.fields().stream().map(ProcedureSummary.Field::id).toList());
+        var next = new ProcedureWriteRequest(request.code(), request.name(), request.level(), request.status(), request.version(),
+                request.originalAgency(), request.audience(), request.conditions(), request.portalUrl(), request.source(), request.fieldIds());
+        return previous.equals(next);
+    }
+
+    private void validateContent(com.fasterxml.jackson.databind.JsonNode payload) {
+        var issues = content.validate(payload, 1, payload.path("ma_thu_tuc").asText());
+        if (!issues.isEmpty()) {
+            var first = issues.get(0);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, first.field() + ": " + first.message());
+        }
     }
 
     private Procedure lock(int id, Integer expectedVersion) {
@@ -112,7 +131,7 @@ public class AdminProcedureService {
         return row;
     }
 
-    private void apply(Procedure row, Input request) {
+    private void apply(Procedure row, ProcedureWriteRequest request) {
         row.setMaThuTuc(request.code().strip());
         row.setTen(request.name().strip());
         row.setTenKhongDau(VietnameseText.forSearch(row.getTen()));
@@ -125,7 +144,7 @@ public class AdminProcedureService {
         row.setNguonDuLieu(request.source());
     }
 
-    private void validateFields(Input request) {
+    private void validateFields(ProcedureWriteRequest request) {
         var ids = request.fieldIds();
         if (new LinkedHashSet<>(ids).size() != ids.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lĩnh vực bị chọn trùng.");

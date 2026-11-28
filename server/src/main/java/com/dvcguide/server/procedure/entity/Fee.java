@@ -31,7 +31,7 @@ public class Fee {
     @Column(name = "so_tien", precision = 15, scale = 2)
     private BigDecimal soTien;
 
-    @Column(name = "tien_te", length = 10)
+    @Column(name = "tien_te", length = 50)
     private String tienTe;
 
     @Column(name = "ghi_chu", columnDefinition = "TEXT")

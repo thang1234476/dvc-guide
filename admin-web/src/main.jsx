@@ -1,24 +1,33 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, basicCredentials } from './api.js';
-import { levels, ProcedureEditor, statuses } from './ProcedureEditor.jsx';
+import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router';
+import { api } from './api.js';
+import { ProceduresPage } from './ProceduresPage.jsx';
+import { AdminAccountsPage } from './AdminAccountsPage.jsx';
+import { MyAccountPage } from './MyAccountPage.jsx';
+import { ImportProceduresPage } from './ImportProceduresPage.jsx';
+import { RagSourcesPage } from './RagSourcesPage.jsx';
+import { ChangeLogsPage } from './ChangeLogsPage.jsx';
+import { Icon } from './ui.jsx';
 import './styles.css';
 
-function Login({ onLogin }) {
+function Login({ onLogin, notice }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const authorization = basicCredentials(form.get('email').trim(), form.get('password'));
     setBusy(true);
     setError('');
     try {
-      const profile = await api('/admin/me', { authorization });
-      onLogin({ authorization, profile });
+      const profile = await api('/admin/auth/login', {
+        method: 'POST', body: { email: form.get('email').trim(), password: form.get('password') },
+      });
+      onLogin(profile);
     } catch (failure) {
       setError(failure.message);
+    } finally {
       setBusy(false);
     }
   }
@@ -26,8 +35,11 @@ function Login({ onLogin }) {
   return (
     <main className="login">
       <section className="panel" aria-labelledby="login-title">
-        <p className="brand">DVC Guide</p>
+        <div className="login-brand"><span className="brand-mark"><Icon name="document" /></span><p className="brand">DVC Guide</p></div>
+        <p className="eyebrow">KHÔNG GIAN QUẢN TRỊ</p>
         <h1 id="login-title">Đăng nhập quản trị</h1>
+        <p className="muted login-description">Đăng nhập để quản lý thủ tục, dữ liệu và tài khoản của hệ thống.</p>
+        {notice && <p className="notice" role="status">{notice}</p>}
         <form onSubmit={submit}>
           <label>Email<input name="email" type="email" autoComplete="username" required maxLength={255} /></label>
           <label>Mật khẩu<input name="password" type="password" autoComplete="current-password" required maxLength={72} /></label>
@@ -39,144 +51,155 @@ function Login({ onLogin }) {
   );
 }
 
-function Workspace({ session, logout }) {
-  const { authorization, profile } = session;
-  const [search, setSearch] = useState({ keyword: '', page: 0, revision: 0 });
-  const [rows, setRows] = useState(null);
-  const [fields, setFields] = useState([]);
-  const [fieldsReady, setFieldsReady] = useState(false);
-  const [editor, setEditor] = useState(null);
-  const [listError, setListError] = useState('');
-  const [editorError, setEditorError] = useState('');
-  const [notice, setNotice] = useState('');
-  const pendingEdit = useRef(null);
+function RequireLogin({ profile }) {
+  const location = useLocation();
+  return profile ? <Outlet /> : <Navigate to="/login" replace
+    state={{ from: location.pathname + location.search + location.hash }} />;
+}
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const params = new URLSearchParams({ keyword: search.keyword, page: search.page });
-    setRows(null);
-    setListError('');
-    api(`/admin/procedures?${params}`, { authorization, signal: controller.signal }).then(setRows).catch((failure) => {
-      if (!controller.signal.aborted) setListError(failure.message);
-    });
-    return () => controller.abort();
-  }, [authorization, search]);
+function Workspace({ profile, logout }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef(null);
+  const location = useLocation();
+  const sections = [
+    { path: '/admin/procedures', name: 'Thủ tục', icon: 'document' },
+    { path: '/admin/imports', name: 'Nhập dữ liệu', icon: 'upload' },
+    { path: '/admin/ai-sources', name: 'Đồng bộ RAG', icon: 'refresh' },
+    { path: '/admin/change-logs', name: 'Lịch sử thay đổi', icon: 'history' },
+  ];
+  const currentPage = [...sections, { path: '/admin/accounts', name: 'Tài khoản admin' }, { path: '/admin/me', name: 'Tài khoản của tôi' }]
+    .find(section => location.pathname === section.path)?.name ?? 'Quản trị';
+  useEffect(() => { setMenuOpen(false); window.scrollTo(0, 0); }, [location.pathname]);
+  function closeMenuOnEscape(event) {
+    if (event.key === 'Escape' && menuOpen) { setMenuOpen(false); menuButton.current?.focus(); }
+  }
 
-  useEffect(() => {
-    const controller = new AbortController();
-    api('/catalog/fields', { signal: controller.signal }).then((items) => {
-      setFields(items);
-      setFieldsReady(true);
-    }).catch((failure) => {
-      if (!controller.signal.aborted) setEditorError(failure.message);
-    });
-    return () => {
-      controller.abort();
-      pendingEdit.current?.abort();
-    };
-  }, []);
-
-  async function edit(id) {
-    pendingEdit.current?.abort();
-    setEditorError('');
-    setNotice('');
-    if (id === null) {
-      setEditor({ detail: null });
-      return;
-    }
-    const controller = new AbortController();
-    pendingEdit.current = controller;
-    setEditor({ loading: true });
+  async function signOut() {
+    setBusy(true);
+    setError('');
     try {
-      const detail = await api(`/admin/procedures/${id}`, { authorization, signal: controller.signal });
-      if (!controller.signal.aborted) setEditor({ detail });
+      await logout();
     } catch (failure) {
-      if (!controller.signal.aborted) {
-        setEditorError(failure.message);
-        setEditor(null);
-      }
+      setError(failure.message);
+    } finally {
+      setBusy(false);
     }
-  }
-
-  function completed(message) {
-    setEditor(null);
-    setNotice(message);
-    setSearch((previous) => ({ ...previous, page: 0, revision: previous.revision + 1 }));
-  }
-
-  async function save(body) {
-    const id = editor.detail?.procedure.id;
-    await api(id ? `/admin/procedures/${id}` : '/admin/procedures',
-      { authorization, body, method: id ? 'PUT' : 'POST' });
-    completed('Đã lưu thủ tục.');
-  }
-
-  async function retire() {
-    const { id, version } = editor.detail.procedure;
-    await api(`/admin/procedures/${id}?version=${version}`, { authorization, method: 'DELETE' });
-    completed('Đã ngừng áp dụng thủ tục.');
   }
 
   return (
     <>
-      <header>
+      <a className="skip-link" href="#workspace-content">Đến nội dung chính</a>
+      <header className="app-header">
         <div className="shell topbar">
-          <span className="brand">DVC Guide</span>
+          <div className="brand-area">
+            <button ref={menuButton} className="menu-toggle icon-button" aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(value => !value)} onKeyDown={closeMenuOnEscape}><Icon name={menuOpen ? 'close' : 'menu'} /></button>
+            <Link className="brand brand-link" to="/admin"><span className="brand-mark"><Icon name="document" /></span><span>DVC Guide<small>QUẢN TRỊ HỆ THỐNG</small></span></Link>
+          </div>
           <div className="account">
-            <span>{profile.displayName || profile.email}</span>
-            <button onClick={logout}>Đăng xuất</button>
+            <NavLink className="account-link" to="/admin/me" aria-label="Tài khoản của tôi" title="Tài khoản của tôi">
+              <Icon className="account-icon" name="user" />
+              <span>{profile.displayName || profile.email}</span>
+            </NavLink>
+            <button className="logout-button" disabled={busy} onClick={signOut} aria-label={busy ? 'Đang đăng xuất…' : 'Đăng xuất'}><Icon name="logout" /><span>{busy ? 'Đang đăng xuất…' : 'Đăng xuất'}</span></button>
           </div>
         </div>
       </header>
-      <main className="shell workspace">
-        <div className="section-heading">
-          <h1>Quản lý thủ tục</h1>
-          <button className="primary" disabled={Boolean(editor) || !fieldsReady} onClick={() => edit(null)}>Thêm thủ tục</button>
+      <div className="workspace-layout">
+        <aside id="workspace-navigation" className={`navigation${menuOpen ? ' is-open' : ''}`} onKeyDown={closeMenuOnEscape}>
+          <nav className="workspace-nav" aria-label="Chức năng quản trị">
+            <p className="nav-group-title">NỘI DUNG & DỮ LIỆU</p>
+            {sections.map(section => <NavLink key={section.path} to={section.path} onClick={() => setMenuOpen(false)}><Icon name={section.icon} /><span>{section.name}</span></NavLink>)}
+            {profile.role === 'admin' && <><p className="nav-group-title nav-group-divider">QUẢN TRỊ</p><NavLink to="/admin/accounts" onClick={() => setMenuOpen(false)}><Icon name="users" /><span>Tài khoản admin</span></NavLink></>}
+          </nav>
+          <div className="sidebar-note"><Icon name="shield" /><p>Trung tâm quản trị<small>DVC Guide</small></p></div>
+        </aside>
+        <div className="workspace-body">
+          <div className="breadcrumb"><span>Quản trị</span><Icon name="right" /><span aria-current="page">{currentPage}</span></div>
+          {error && <div className="workspace-message"><p className="error" role="alert">{error}</p></div>}
+          <main id="workspace-content" className="workspace" tabIndex={-1}><Outlet /></main>
         </div>
-        {notice && <p className="notice" role="status">{notice}</p>}
-        {editorError && <p className="error" role="alert">{editorError}</p>}
-        {editor?.loading && <p role="status">Đang tải thủ tục…</p>}
-        {editor && !editor.loading &&
-          <ProcedureEditor key={editor.detail?.procedure.id ?? 'new'} detail={editor.detail} fields={fields}
-            save={save} retire={retire} close={() => setEditor(null)} />}
-        {!editor && <section className="panel" aria-label="Danh sách thủ tục">
-          <form className="search" onSubmit={(event) => {
-            event.preventDefault();
-            const keyword = new FormData(event.currentTarget).get('keyword').trim();
-            setSearch((previous) => ({ keyword, page: 0, revision: previous.revision + 1 }));
-          }}>
-            <input type="search" name="keyword" maxLength={250} aria-label="Tên hoặc mã thủ tục" placeholder="Tên hoặc mã thủ tục" />
-            <button>Tìm kiếm</button>
-          </form>
-          {listError ? <p className="error" role="alert">{listError}</p> :
-            rows === null ? <p className="muted" role="status">Đang tải danh sách…</p> :
-            rows.items.length === 0 ? <p className="muted">Không tìm thấy thủ tục.</p> :
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Mã thủ tục</th><th>Tên thủ tục</th><th>Cấp thực hiện</th><th>Trạng thái</th><th><span className="sr-only">Thao tác</span></th></tr></thead>
-                <tbody>{rows.items.map((row) => <tr key={row.id}>
-                  <td className="code">{row.code}</td>
-                  <td>{row.name}{row.fields.length > 0 && <small>{row.fields.map(({ name }) => name).join(' · ')}</small>}</td>
-                  <td>{levels[row.level] ?? 'Chưa xác định'}</td>
-                  <td><span className={`status ${row.status}`}>{statuses[row.status]}</span></td>
-                  <td><button disabled={!fieldsReady} onClick={() => edit(row.id)} aria-label={`Sửa ${row.name}`}>Sửa</button></td>
-                </tr>)}</tbody>
-              </table>
-            </div>}
-          {rows?.totalPages > 1 && <div className="pagination">
-            <span>Trang {rows.page + 1}/{rows.totalPages}</span>
-            <button disabled={rows.page === 0} onClick={() => setSearch({ ...search, page: rows.page - 1 })}>Trang trước</button>
-            <button disabled={rows.page + 1 >= rows.totalPages} onClick={() => setSearch({ ...search, page: rows.page + 1 })}>Trang sau</button>
-          </div>}
-        </section>}
-      </main>
+      </div>
     </>
   );
 }
 
-function App() {
-  const [session, setSession] = useState(null);
-  return session ? <Workspace session={session} logout={() => setSession(null)} /> : <Login onLogin={setSession} />;
+function MissingPage({ forbidden = false }) {
+  return <section className="panel">
+    <h1>{forbidden ? 'Bạn không có quyền truy cập' : 'Không tìm thấy trang'}</h1>
+    <p>{forbidden ? 'Chỉ quản trị viên được xem và tạo tài khoản admin.' : 'Đường dẫn này không tồn tại.'}</p>
+    <Link to="/admin/procedures">Về trang quản lý thủ tục</Link>
+  </section>;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+function App() {
+  const [profile, setProfile] = useState(undefined);
+  const [notice, setNotice] = useState('');
+  const [initialError, setInitialError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const location = useLocation();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setInitialError('');
+    api('/admin/me', { signal: controller.signal }).then(setProfile).catch((failure) => {
+      if (controller.signal.aborted) return;
+      if (failure.status === 401) setProfile(null);
+      else setInitialError(failure.message);
+    });
+    return () => controller.abort();
+  }, [attempt]);
+
+  const endSession = useCallback((message = '') => {
+    setProfile(null);
+    setNotice(message);
+  }, []);
+  const request = useCallback(async (path, options = {}) => {
+    try {
+      return await api(path, options);
+    } catch (failure) {
+      if (failure.status === 401) endSession('Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.');
+      throw failure;
+    }
+  }, [endSession]);
+  const logout = useCallback(async () => {
+    await request('/admin/auth/logout', { method: 'POST' });
+    endSession();
+  }, [request, endSession]);
+  const updateProfile = useCallback((updated) => {
+    setProfile((previous) => previous?.id === updated.id ? updated : previous);
+  }, []);
+
+  if (profile === undefined) return <main className="login"><section className="panel">
+    <p className="brand">DVC Guide</p>
+    {initialError ? <>
+      <p className="error" role="alert">Không thể kiểm tra phiên đăng nhập: {initialError}</p>
+      <button onClick={() => setAttempt((previous) => previous + 1)}>Thử lại</button>
+    </> : <p role="status">Đang kiểm tra phiên đăng nhập…</p>}
+  </section></main>;
+
+  const from = location.state?.from;
+  const destination = typeof from === 'string' && /^\/admin(?:\/|$)/.test(from) ? from : '/admin/procedures';
+  return <Routes>
+    <Route path="/login" element={profile ? <Navigate to={destination} replace /> :
+      <Login notice={notice} onLogin={(next) => { setNotice(''); setProfile(next); }} />} />
+    <Route element={<RequireLogin profile={profile} />}>
+      <Route path="/admin" element={<Workspace profile={profile} logout={logout} />}>
+        <Route index element={<Navigate to="procedures" replace />} />
+        <Route path="procedures" element={<ProceduresPage request={request} />} />
+        <Route path="imports" element={<ImportProceduresPage request={request} />} />
+        <Route path="ai-sources" element={<RagSourcesPage request={request} />} />
+        <Route path="change-logs" element={<ChangeLogsPage request={request} />} />
+        <Route path="accounts" element={profile?.role === 'admin' ? <AdminAccountsPage request={request} /> : <MissingPage forbidden />} />
+        <Route path="me" element={<MyAccountPage request={request} profile={profile} onUpdated={updateProfile}
+          onPasswordChanged={() => endSession('Đã đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.')} />} />
+        <Route path="*" element={<MissingPage />} />
+      </Route>
+    </Route>
+    <Route path="/" element={<Navigate to="/admin" replace />} />
+    <Route path="*" element={<main className="shell workspace"><MissingPage /></main>} />
+  </Routes>;
+}
+
+createRoot(document.getElementById('root')).render(<BrowserRouter><App /></BrowserRouter>);
