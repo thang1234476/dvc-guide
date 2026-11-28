@@ -194,7 +194,7 @@ CREATE TABLE thanh_phan_ho_so (
     thu_tuc_id          INT NOT NULL,
     truong_hop_id       INT NULL,
     nhom                VARCHAR(255),
-    ten_giay_to         VARCHAR(1000) NOT NULL,
+    ten_giay_to         TEXT NOT NULL,
     truong_hop_goc      TEXT,                              -- nguyên văn trường truong_hop của clean.json
     so_luong_ban_chinh  SMALLINT NULL,
     so_luong_ban_sao    SMALLINT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE le_phi (
     cach_thuc_id  INT NOT NULL,
     mien_phi      BOOLEAN NOT NULL DEFAULT FALSE,
     so_tien       DECIMAL(15,2) NULL,
-    tien_te       VARCHAR(10) NULL,
+    tien_te       VARCHAR(50) NULL,
     ghi_chu       TEXT,
     thu_tu        SMALLINT NOT NULL DEFAULT 1,
     FOREIGN KEY (cach_thuc_id) REFERENCES hinh_thuc_nop_chi_tiet(id) ON DELETE CASCADE
@@ -441,4 +441,34 @@ CREATE TABLE nhat_ky_thay_doi (
     tao_luc         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY idx_nk_bang (bang, ban_ghi_id),
     FOREIGN KEY (quan_tri_id) REFERENCES quan_tri_vien(id) ON DELETE SET NULL
+);
+
+-- Du lieu goc thu tuc va hang doi dong bo RAG.
+CREATE TABLE IF NOT EXISTS thu_tuc_du_lieu_goc (
+    thu_tuc_id INT NOT NULL PRIMARY KEY,
+    du_lieu_goc JSON NOT NULL,
+    CONSTRAINT fk_du_lieu_goc_thu_tuc FOREIGN KEY (thu_tuc_id) REFERENCES thu_tuc(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS hang_doi_dong_bo_rag (
+    thu_tuc_id INT NOT NULL PRIMARY KEY,
+    phien_ban_can_dong_bo INT NOT NULL,
+    phien_ban_da_dong_bo INT NULL,
+    trang_thai VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    so_lan_thu INT NOT NULL DEFAULT 0,
+    so_doan INT NOT NULL DEFAULT 0,
+    thu_lai_luc TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    giu_den_luc TIMESTAMP(6) NULL,
+    loi_gan_nhat VARCHAR(500) NULL,
+    dong_bo_luc TIMESTAMP(6) NULL,
+    KEY idx_hang_doi_rag_thu_lai (trang_thai, thu_lai_luc)
+);
+
+CREATE TABLE IF NOT EXISTS thanh_phan_ho_so_bieu_mau (
+    thanh_phan_id INT NOT NULL,
+    bieu_mau_id INT NOT NULL,
+    thu_tu INT NOT NULL,
+    PRIMARY KEY (thanh_phan_id, bieu_mau_id),
+    CONSTRAINT fk_ho_so_bieu_mau_thanh_phan FOREIGN KEY (thanh_phan_id) REFERENCES thanh_phan_ho_so(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ho_so_bieu_mau_bieu_mau FOREIGN KEY (bieu_mau_id) REFERENCES bieu_mau(id)
 );

@@ -10,12 +10,12 @@ import java.util.List;
 public record ProcedureDetail(ProcedureSummary procedure, String originalAgency, String audience, String conditions,
                               String portalUrl, String source, List<Case> cases, List<Document> documents,
                               List<Step> steps, List<Submission> submissions, List<Agency> agencies,
-                              List<String> results, List<LegalBasis> legalBases) {
+                              List<String> results, List<LegalBasis> legalBases, JsonNode cleanData) {
 
     public record Case(int id, String name, String conditions, String question) {}
 
     public record Document(int id, Integer caseId, String group, String name, String originalCase,
-                           Short originals, Short copies, Boolean required, String notes, Form form) {}
+                           Short originals, Short copies, Boolean required, String notes, Form form, List<Form> forms) {}
 
     public record Form(int id, String code, String name, String version, LocalDate effectiveDate,
                        String docxUrl, String pdfUrl, String exampleUrl, Integer legalDocumentId,

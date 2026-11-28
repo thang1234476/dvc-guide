@@ -9,9 +9,13 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
+import com.dvcguide.server.common.model.ProcedureStatus;
 
 public interface ProcedureRepository extends JpaRepository<Procedure, Integer> {
+    Optional<Procedure> findByMaThuTuc(String code);
+    List<Procedure> findByTrangThaiOrderById(ProcedureStatus status);
 
     @Query("""
             select p from Procedure p

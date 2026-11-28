@@ -2,4 +2,7 @@
 !requirements.txt
 !app/
 !app/**
+!data/
+!data/clean.json
+!data/gate.json
 **/__pycache__/

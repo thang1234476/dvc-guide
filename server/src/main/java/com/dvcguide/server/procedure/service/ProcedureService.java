@@ -1,6 +1,9 @@
 package com.dvcguide.server.procedure.service;
 
 import com.dvcguide.server.catalog.entity.Agency;
+import com.dvcguide.server.admin.entity.ProcedureSource;
+import com.dvcguide.server.admin.service.ProcedurePayloadProjection;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.dvcguide.server.catalog.entity.ProcedureField;
 import com.dvcguide.server.common.exception.ResourceNotFoundException;
 import com.dvcguide.server.common.model.ProcedureStatus;
@@ -29,6 +32,7 @@ import java.util.stream.Collectors;
 public class ProcedureService {
     private final ProcedureRepository procedures;
     private final EntityManager db;
+    private final ProcedurePayloadProjection payloadProjection;
 
     public PageResponse<ProcedureSummary> search(String keyword, List<Integer> fieldIds, boolean savedOnly,
                                                  String userId, int page, int size) {
@@ -78,24 +82,33 @@ public class ProcedureService {
                 .toList();
         var documents = rows(RequiredDocument.class, id, "r.thuTu, r.id");
         var forms = loadForms(documents);
+        var formLinks = documents.isEmpty() ? List.<DocumentForm>of() : db.createQuery(
+                "select l from DocumentForm l where l.documentId in :ids order by l.sortOrder", DocumentForm.class)
+                .setParameter("ids", documents.stream().map(RequiredDocument::getId).toList()).getResultList();
         var steps = rows(ProcedureStep.class, id, "r.thuTu, r.id").stream()
                 .map(s -> new ProcedureDetail.Step(s.getId(), s.getHinhThuc(), s.getThuTu(), s.getTieuDe(),
                         s.getMoTa(), s.getAnhHuongDanUrl())).toList();
         var results = rows(ProcedureResult.class, id, "r.thuTu, r.id").stream().map(ProcedureResult::getTen).toList();
         return new ProcedureDetail(summary(row, fields(List.of(id)), favorites(userId, List.of(id))),
                 row.getCoQuanThucHienGoc(), row.getDoiTuong(), row.getDieuKien(), row.getLinkDvc(), row.getNguonDuLieu(),
-                cases, documents.stream().map(d -> document(d, forms)).toList(),
-                steps, loadSubmissions(id), loadAgencies(id, null), results, loadLegalBases(id));
+                cases, documents.stream().map(d -> document(d, forms, formLinks)).toList(),
+                steps, loadSubmissions(id), loadAgencies(id, null), results, loadLegalBases(id),
+                Optional.ofNullable(db.find(ProcedureSource.class, id)).map(source -> payloadProjection.project(row, ((ObjectNode) source.getPayload()).deepCopy())).orElse(null));
     }
 
-    private ProcedureDetail.Document document(RequiredDocument d, Map<Integer, ProcedureDetail.Form> forms) {
+    private ProcedureDetail.Document document(RequiredDocument d, Map<Integer, ProcedureDetail.Form> forms, List<DocumentForm> links) {
+        var all = links.stream().filter(l -> l.getDocumentId().equals(d.getId())).map(l -> forms.get(l.getFormId()))
+                .filter(Objects::nonNull).toList();
+        var first = d.getBieuMauId() == null ? null : forms.get(d.getBieuMauId());
         return new ProcedureDetail.Document(d.getId(), d.getTruongHopId(), d.getNhom(), d.getTenGiayTo(),
                 d.getTruongHopGoc(), d.getSoLuongBanChinh(), d.getSoLuongBanSao(), d.getBatBuoc(), d.getGhiChu(),
-                d.getBieuMauId() == null ? null : forms.get(d.getBieuMauId()));
+                first, all.isEmpty() && first != null ? List.of(first) : all);
     }
 
     private Map<Integer, ProcedureDetail.Form> loadForms(List<RequiredDocument> documents) {
-        var ids = documents.stream().map(RequiredDocument::getBieuMauId).filter(Objects::nonNull).distinct().toList();
+        var ids = new ArrayList<>(documents.stream().map(RequiredDocument::getBieuMauId).filter(Objects::nonNull).distinct().toList());
+        if (!documents.isEmpty()) ids.addAll(db.createQuery("select l.formId from DocumentForm l where l.documentId in :ids", Integer.class)
+                .setParameter("ids", documents.stream().map(RequiredDocument::getId).toList()).getResultList());
         if (ids.isEmpty()) {
             return Map.of();
         }
@@ -143,13 +156,18 @@ public class ProcedureService {
     }
 
     private List<ProcedureDetail.LegalBasis> loadLegalBases(int id) {
+        var source = db.find(ProcedureSource.class, id);
+        var sourceNames = new HashMap<String, String>();
+        if (source != null) source.getPayload().path("can_cu").forEach(law -> {
+            if (law.path("ma").isTextual() && law.path("ten").isTextual()) sourceNames.put(law.get("ma").asText(), law.get("ten").asText());
+        });
         return db.createQuery("""
                 select link, v from ProcedureLegalBasis link join LegalDocument v on v.id = link.vanBanId
                 where link.thuTucId = :id order by link.thuTu, link.id
                 """, Object[].class).setParameter("id", id).getResultList().stream().map(pair -> {
                     var link = (ProcedureLegalBasis) pair[0];
                     var v = (LegalDocument) pair[1];
-                    return new ProcedureDetail.LegalBasis(link.getId(), v.getId(), v.getSoHieu(), v.getTen(),
+                    return new ProcedureDetail.LegalBasis(link.getId(), v.getId(), v.getSoHieu(), sourceNames.getOrDefault(v.getSoHieu(), v.getTen()),
                             v.getLoai(), v.getCoQuanBanHanh(), v.getNgayBanHanh(), v.getNgayHieuLuc(),
                             v.getNgayHetHieuLuc(), v.getTrangThaiHieuLuc(), v.getXacMinhLuc(),
                             v.getNguonXacMinh(), v.getUrl(), link.getDieuKhoan());

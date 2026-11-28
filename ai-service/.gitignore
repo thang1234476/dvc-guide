@@ -1,0 +1,13 @@
+
+
+# TTHC runtime
+cache/
+runtime/
+*.rag-state.json
+*.rag-state.json.tmp
+logs/
+data/backups/
+__pycache__/
+*.pyc
+*.gguf
+*.tthc-tmp

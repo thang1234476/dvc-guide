@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # ── Application ─────────────────────────────────────────────────────────
     app_name: str = "DVC Guide AI Service"
@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     # ── Spring Boot Backend ────────────────────────────────────────────────────
     backend_url: str = "http://localhost:8080"
+    tthc_api_keys: str = ""
 
 
 

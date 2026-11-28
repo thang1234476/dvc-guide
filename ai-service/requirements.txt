@@ -10,11 +10,12 @@ pydantic-settings==2.6.1
 # ── HTTP Client ──────────────────────────────────
 httpx==0.27.2
 
-# ── Future: RAG Dependencies (uncomment when implementing) ─────────────────────
-# ollama==0.3.3          # Ollama Python client
-# langchain==0.3.7       # LangChain framework
-# qdrant-client==1.12.1  # Qdrant vector database client
-# sentence-transformers  # Local embedding models
+# ── Local retrieval (versions used by the current TTHC environment) ──────────
+numpy==2.5.5
+faiss-cpu==1.16.0
+rank-bm25==0.2.2
+sentence-transformers==6.3.0
+underthesea==9.5.0
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.3

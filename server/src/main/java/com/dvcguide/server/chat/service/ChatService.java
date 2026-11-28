@@ -20,12 +20,15 @@ public class ChatService {
     private final ConversationService conversations;
     private final ProcedureService procedures;
     private final AiServiceClient ai;
+    private final RagCatalogService catalog;
 
     public Exchange send(String userId, String id, String content) {
         var snapshot = conversations.snapshot(userId, id);
         String question = content.strip();
-        var request = new AiServiceClient.Query(question, loadSources(snapshot.procedureId()), snapshot.history());
-        var answer = ai.query(request);
+        var sources = loadSources(snapshot.procedureId());
+        var allowed = snapshot.procedureId() != null && sources.isEmpty() ? List.<AiServiceClient.Version>of() : catalog.published();
+        var request = new AiServiceClient.Query(question, sources, snapshot.history(), allowed);
+        var answer = catalog.validateCurrent(request, ai.query(request));
         return conversations.append(userId, id, snapshot, question, answer);
     }
 
@@ -45,7 +48,7 @@ public class ChatService {
         if (summary.code().isBlank() || summary.name().isBlank() || context.isEmpty()) {
             return List.of();
         }
-        return List.of(new AiServiceClient.Source(summary.id(), summary.code().strip(), summary.name(), context));
+        return List.of(new AiServiceClient.Source(summary.id(), summary.code().strip(), summary.name(), context, summary.version()));
     }
 
     private String context(ProcedureDetail detail) {

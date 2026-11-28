@@ -3,6 +3,10 @@ spring:
     name: dvc-guide-server
   profiles:
     active: dev
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   datasource:
     url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:dvc_guide}?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8}
     username: ${DB_USERNAME:root}
@@ -21,6 +25,15 @@ server:
   port: ${SERVER_PORT:8080}
   servlet:
     context-path: /
+    session:
+      timeout: 8h
+      tracking-modes: cookie
+      cookie:
+        name: DVC_ADMIN_SESSION
+        path: /api/v1/admin
+        http-only: true
+        same-site: lax
+        secure: ${ADMIN_SESSION_COOKIE_SECURE:false}
 
 management:
   endpoints:
@@ -40,6 +53,10 @@ integration:
   ai-service:
     base-url: ${AI_SERVICE_URL:http://localhost:8000}
     timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:55}
+    api-key: ${AI_SERVICE_API_KEY:}
+  rag-sync:
+    enabled: ${RAG_SYNC_ENABLED:true}
+    timeout-seconds: ${RAG_SYNC_TIMEOUT_SECONDS:180}
 
 app:
   cors:
